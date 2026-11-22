@@ -21,6 +21,8 @@ public class OrderServlet extends HttpServlet {
         String email = (String) session.getAttribute("email");
         String contact = (String) session.getAttribute("contact");
         String address = (String) session.getAttribute("address");
+        System.out.println("Logged User: " + name);
+        System.out.println("Logged Email: " + email);
 
         // ===== CART =====
         List<String> cart = (List<String>) session.getAttribute("cart");

@@ -1,3 +1,4 @@
+
 package com.org;
 
 import java.io.IOException;
@@ -10,44 +11,69 @@ import javax.servlet.annotation.WebServlet;
 import javax.servlet.http.*;
 
 @WebServlet("/UserServlet")
+
 public class UserServlet extends HttpServlet {
 
-    protected void doGet(HttpServletRequest req, HttpServletResponse resp)
+    @Override
+    protected void doGet(HttpServletRequest req,
+                         HttpServletResponse resp)
             throws ServletException, IOException {
 
-        List<String[]> users = new ArrayList<>();
+        // Check Admin Session
+        HttpSession session = req.getSession(false);
 
-        try {
-            Class.forName("com.mysql.cj.jdbc.Driver");
+        if (session == null ||
+            !"admin".equalsIgnoreCase(
+                (String) session.getAttribute("role"))) {
 
-            Connection con = DriverManager.getConnection(
-                "jdbc:mysql://localhost:3306/bb62backend",
-                "root",
-                "vrushali1612"
-            );
-
-            String sql = "SELECT id, username, email, role FROM users";
-            PreparedStatement ps = con.prepareStatement(sql);
-
-            ResultSet rs = ps.executeQuery();
-
-            while (rs.next()) {
-                String[] user = new String[4];
-                user[0] = rs.getString("id");
-                user[1] = rs.getString("username");
-                user[2] = rs.getString("email");
-                user[3] = rs.getString("role");
-
-                users.add(user);
-            }
-
-            con.close();
-
-        } catch (Exception e) {
-            e.printStackTrace();
+            resp.sendRedirect("Login.jsp");
+            return;
         }
 
-        req.setAttribute("users", users);
-        req.getRequestDispatcher("users.jsp").forward(req, resp);
+        // Store all users
+        List<String[]> users = new ArrayList<>();
+
+        String sql =
+            "SELECT id, username, email, role FROM users";
+
+        try {
+
+            Class.forName("com.mysql.cj.jdbc.Driver");
+
+            try (Connection con = DriverManager.getConnection(
+                    "jdbc:mysql://localhost:3306/bb62backend",
+                    "root",
+                    "vrushali1612");
+
+                 PreparedStatement ps = con.prepareStatement(sql);
+
+                 ResultSet rs = ps.executeQuery()) {
+
+                while (rs.next()) {
+
+                    String[] user = new String[4];
+
+                    user[0] = rs.getString("id");
+                    user[1] = rs.getString("username");
+                    user[2] = rs.getString("email");
+                    user[3] = rs.getString("role");
+
+                    users.add(user);
+                }
+            }
+
+            // Send users to JSP page
+            req.setAttribute("users", users);
+
+            req.getRequestDispatcher("users.jsp")
+               .forward(req, resp);
+
+        } catch (Exception e) {
+
+            e.printStackTrace();
+
+            throw new ServletException(
+                "Unable to retrieve registered users", e);
+        }
     }
 }

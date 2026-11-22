@@ -1,3 +1,4 @@
+
 package com.org;
 
 import java.io.IOException;
@@ -9,51 +10,114 @@ import javax.servlet.annotation.WebServlet;
 import javax.servlet.http.*;
 
 @WebServlet("/OrderHistoryServlet")
+
 public class OrderHistoryServlet extends HttpServlet {
 
-    protected void doGet(HttpServletRequest request, HttpServletResponse response)
+    @Override
+    protected void doGet(HttpServletRequest request,
+                         HttpServletResponse response)
             throws ServletException, IOException {
 
-        List<Map<String, Object>> orderList = new ArrayList<>();
+        // Check Login Session
+        HttpSession session = request.getSession(false);
+
+        if (session == null ||
+            session.getAttribute("role") == null) {
+
+            response.sendRedirect("Login.jsp");
+            return;
+        }
+
+        String role = (String) session.getAttribute("role");
+        String email = (String) session.getAttribute("email");
+
+        List<Map<String, Object>> orderList =
+            new ArrayList<>();
+
+        String sql;
+
+        // Admin can see all orders
+        if ("admin".equalsIgnoreCase(role)) {
+
+            sql = "SELECT * FROM orderss ORDER BY order_id DESC";
+
+        }
+        // User can see only their own orders
+        else if ("user".equalsIgnoreCase(role)) {
+
+            sql = "SELECT * FROM orderss WHERE email = ? ORDER BY order_id DESC";
+
+        }
+        else {
+
+            response.sendRedirect("Login.jsp");
+            return;
+        }
 
         try {
 
             Class.forName("com.mysql.cj.jdbc.Driver");
 
-            Connection con = DriverManager.getConnection(
+            try (Connection con = DriverManager.getConnection(
                     "jdbc:mysql://localhost:3306/bb62backend",
                     "root",
-                    "vrushali1612"
-            );
+                    "vrushali1612");
 
-            String sql = "SELECT * FROM orderss ORDER BY order_id DESC";
-            PreparedStatement ps = con.prepareStatement(sql);
-            ResultSet rs = ps.executeQuery();
+                 PreparedStatement ps = con.prepareStatement(sql)) {
 
-            while (rs.next()) {
+                // Apply email filter for normal users
+                if ("user".equalsIgnoreCase(role)) {
 
-                Map<String, Object> order = new HashMap<>();
+                    ps.setString(1, email);
+                }
 
-                order.put("orderId", rs.getInt("order_id"));
-                order.put("name", rs.getString("user_name"));
-                order.put("email", rs.getString("email"));
-                order.put("contact", rs.getString("contact"));
-                order.put("address", rs.getString("address"));
-                order.put("total", rs.getDouble("total_amount"));
-                order.put("date", rs.getTimestamp("order_date"));
+                try (ResultSet rs = ps.executeQuery()) {
 
-                orderList.add(order);
+                    while (rs.next()) {
+
+                        Map<String, Object> order =
+                            new HashMap<>();
+
+                        order.put("orderId",
+                                  rs.getInt("order_id"));
+
+                        order.put("name",
+                                  rs.getString("user_name"));
+
+                        order.put("email",
+                                  rs.getString("email"));
+
+                        order.put("contact",
+                                  rs.getString("contact"));
+
+                        order.put("address",
+                                  rs.getString("address"));
+
+                        order.put("total",
+                                  rs.getDouble("total_amount"));
+
+                        order.put("date",
+                                  rs.getTimestamp("order_date"));
+
+                        orderList.add(order);
+                    }
+                }
             }
 
-            con.close();
+            System.out.println(
+                "Orders found: " + orderList.size());
+
+            request.setAttribute("orders", orderList);
+
+            request.getRequestDispatcher(
+                "order-history.jsp").forward(request, response);
 
         } catch (Exception e) {
+
             e.printStackTrace();
+
+            throw new ServletException(
+                "Unable to retrieve order history", e);
         }
-
-        System.out.println("Orders found: " + orderList.size());
-
-        request.setAttribute("orders", orderList);
-        request.getRequestDispatcher("order-history.jsp").forward(request, response);
     }
 }

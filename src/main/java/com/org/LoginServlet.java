@@ -1,3 +1,4 @@
+
 package com.org;
 
 import java.io.IOException;
@@ -10,66 +11,97 @@ import javax.servlet.http.*;
 public class LoginServlet extends HttpServlet {
 
     @Override
-    protected void doGet(HttpServletRequest req, HttpServletResponse resp)
+    protected void doGet(HttpServletRequest req,
+                         HttpServletResponse resp)
             throws ServletException, IOException {
 
         String name = req.getParameter("username");
         String pass = req.getParameter("password");
 
-        if (name == null || pass == null) {
+        if (name == null || pass == null ||
+            name.trim().isEmpty() || pass.trim().isEmpty()) {
+
             resp.sendRedirect("Login.jsp");
             return;
         }
 
+        String sql =
+            "SELECT * FROM users WHERE username=? AND password=?";
+
         try {
             Class.forName("com.mysql.cj.jdbc.Driver");
 
-            Connection con = DriverManager.getConnection(
-                "jdbc:mysql://localhost:3306/bb62backend",
-                "root",
-                "vrushali1612"
-            );
+            try (Connection con = DriverManager.getConnection(
+                    "jdbc:mysql://localhost:3306/bb62backend",
+                    "root",
+                    "vrushali1612");
 
-            String sql = "SELECT * FROM users WHERE username=? AND password=?";
-            PreparedStatement ps = con.prepareStatement(sql);
+                 PreparedStatement ps = con.prepareStatement(sql)) {
 
-            ps.setString(1, name.trim());
-            ps.setString(2, pass.trim());
+                ps.setString(1, name.trim());
+                ps.setString(2, pass.trim());
 
-            ResultSet rs = ps.executeQuery();
+                try (ResultSet rs = ps.executeQuery()) {
 
-            if (rs.next()) {
+                    if (rs.next()) {
 
-                String role = rs.getString("role");
+                        String role = rs.getString("role");
 
-                HttpSession session = req.getSession();
+                        if (role == null ||
+                            (!"admin".equalsIgnoreCase(role) &&
+                             !"user".equalsIgnoreCase(role))) {
 
-                session.setAttribute("name", rs.getString("username"));
-                session.setAttribute("email", rs.getString("email"));
-                session.setAttribute("contact", rs.getString("number"));
-                session.setAttribute("address", rs.getString("address"));
-                session.setAttribute("role", role);
+                            resp.sendRedirect("Login.jsp");
+                            return;
+                        }
 
-                // ROLE BASED REDIRECT
-                if ("admin".equalsIgnoreCase(role)) {
-                    resp.sendRedirect("admin-dashboard.jsp");
-                } else {
-                    resp.sendRedirect("dashboard.jsp");
+                        HttpSession oldSession = req.getSession(false);
+
+                        if (oldSession != null) {
+                            oldSession.invalidate();
+                        }
+
+                        HttpSession session = req.getSession(true);
+
+                        session.setAttribute("role",
+                                             role.toLowerCase());
+
+                        session.setAttribute("email",
+                                             rs.getString("email"));
+
+                        session.setAttribute("contact",
+                                             rs.getString("number"));
+
+                        session.setAttribute("address",
+                                             rs.getString("address"));
+
+                        if ("admin".equalsIgnoreCase(role)) {
+
+                            session.setAttribute("name", "Vrushali");
+                            session.setAttribute("adminName", "Vrushali");
+
+                            resp.sendRedirect("admin-dashboard.jsp");
+
+                        } else {
+
+                            session.setAttribute("name",
+                                                 rs.getString("username"));
+
+                            resp.sendRedirect("dashboard.jsp");
+                        }
+
+                    } else {
+
+                        resp.sendRedirect("Login.jsp?error=invalid");
+                    }
                 }
 
-            } else {
-
-                resp.setContentType("text/html");
-                resp.getWriter().println("<script>");
-                resp.getWriter().println("alert('Invalid Username or Password');");
-                resp.getWriter().println("window.location='Login.jsp';");
-                resp.getWriter().println("</script>");
             }
 
-            con.close();
-
         } catch (Exception e) {
+
             e.printStackTrace();
+            resp.sendRedirect("Login.jsp?error=server");
         }
     }
 }
